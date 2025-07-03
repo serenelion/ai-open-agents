@@ -90,6 +90,7 @@ class DocumentContent(BaseModel):
     document_id: str
     document_subsection_id: str
     content: str
+    document_subsections: DocumentSubsection
     created_at: str
     updated_at: Optional[str] = None
 
@@ -102,7 +103,7 @@ class Document(BaseModel):
     status: str
     created_at: str
     updated_at: Optional[str] = None
-    contents: Optional[List[DocumentContent]]
+    document_content: Optional[List[DocumentContent]]
 
 class DocumentContentItem(BaseModel):
     subsection_name: str
