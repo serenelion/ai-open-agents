@@ -3,13 +3,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
+import sentry_sdk
 
 # Import utility modules
 from python.utils.supabase import SupabaseClient
 
 # Load environment variables
 load_dotenv()
+
+# Initialize Sentry
+sentry_sdk.init(
+    dsn="https://f64eca0816f3dadfb4c7dcc1a0461e08@o4509532666724352.ingest.us.sentry.io/4509724856877056",
+    # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring.
+    # We recommend adjusting this value in production.
+    traces_sample_rate=1.0,
+    # Set profiles_sample_rate to 1.0 to profile 100% of sampled transactions.
+    # We recommend adjusting this value in production.
+    profiles_sample_rate=1.0,
+    # Capture 100% of the errors
+    sample_rate=1.0,
+    # Set environment
+    environment=os.getenv("STAGE", "development"),
+)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -37,21 +53,80 @@ supabase_client = SupabaseClient(
 class Project(BaseModel):
     id: str
     title: str
+    category: Optional[str] = None
+    created_at: Optional[str] = None
+    created_by: str
+    funding_needs: Optional[str] = None
+    guilds: Optional[List[str]] = None
+    latitude: Optional[float] = None
     location: Optional[str] = None
-    description: Optional[str] = None
+    longitude: Optional[float] = None
+    power: Optional[str] = None
     property_status: str
+    soil: Optional[str] = None
+    structures: Optional[List[str]] = None
+    team: Optional[List[str]] = None
+    updated_at: Optional[str] = None
+    values_mission_goals: Optional[str] = None
+    water: Optional[str] = None
+    zone_0: Optional[str] = None
+    zone_1: Optional[str] = None
+    zone_2: Optional[str] = None
+    zone_3: Optional[str] = None
+    zone_4: Optional[str] = None
+
+class DocumentSubsection(BaseModel):
+    id: str
+    document_section_id: str
+    name: str
+    order: int
+    priority: int
+    content_type: str
     created_at: str
     updated_at: Optional[str] = None
 
-class BusinessPlan(BaseModel):
+class DocumentSection(BaseModel):
     id: str
-    project_id: str
+    document_type_id: str
+    name: str
+    order: int
     created_at: str
-    content: Optional[str]
-    update_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    document_subsections: Optional[List[DocumentSubsection]] = None
 
-class BusinessPlanUpdate(BaseModel):
+class DocumentType(BaseModel):
+    id: str
+    name: str
+    created_at: str
+    updated_at: Optional[str] = None
+    document_sections: Optional[List[DocumentSection]]
+
+class DocumentContent(BaseModel):
+    id: str
+    document_id: str
+    document_subsection_id: str
     content: str
+    document_subsections: DocumentSubsection
+    created_at: str
+    updated_at: Optional[str] = None
+
+class Document(BaseModel):
+    id: str
+    title: str
+    document_type_id: str
+    project_id: str
+    chat_id: Optional[str] = None
+    published: bool
+    created_at: str
+    updated_at: Optional[str] = None
+    document_content: Optional[List[DocumentContent]]
+
+class DocumentContentItem(BaseModel):
+    subsection_name: str
+    content: str
+
+class ContentUpdate(BaseModel):
+    content_items: List[DocumentContentItem]
 
 # Routes
 @app.get("/")
@@ -75,29 +150,57 @@ async def get_project(project_id: str):
     """
     return supabase_client.get_project(project_id)
 
-# Business plan endpoints
-@app.get("/business_plans/{plan_id}", response_model=BusinessPlan, operation_id="get_business_plan")
-async def get_business_plan(plan_id: str):
+# Document endpoints
+@app.get("/document_types/{doc_type_name}", response_model=DocumentType, operation_id="get_document_type")
+async def get_document_type(doc_type_name: str):
     """
-    Retrieve a business plan by ID.
+    Retrieve document type information including all sections and metadata.
     """
     try:
-        result = supabase_client.get_business_plan(plan_id)
+        result = supabase_client.get_document_type(doc_type_name)
         return result
     except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Business plan not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Document type not found: {str(e)}")
 
-@app.patch("/business_plans/{plan_id}", response_model=BusinessPlan, operation_id="update_business_plan")
-async def update_business_plan(plan_id: str, updates: BusinessPlanUpdate):
+@app.get("/documents/{project_id}/{doc_type_name}", response_model=Document, operation_id="get_document_contents")
+async def get_document_contents(project_id: str, doc_type_name: str):
     """
-    Update a business plan with new information.
-    Only the provided fields will be updated.
+    Retrieve all existing contents of a document.
     """
     try:
-        result = supabase_client.update_business_plan(plan_id, updates.dict(exclude_unset=True))
+        result = supabase_client.get_document_contents(project_id, doc_type_name)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update business plan: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Document not found: {str(e)}")
+
+@app.post("/documents/{project_id}/{doc_type_name}", response_model=Document, operation_id="create_document")
+async def create_document(project_id: str, doc_type_name: str):
+    """
+    Create a new document.
+    """
+    try:
+        result = supabase_client.create_document(
+            project_id=project_id,
+            doc_type_name=doc_type_name,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create document: {str(e)}")
+
+@app.put("/documents/{project_id}/{doc_type_name}", response_model=Document, operation_id="update_document_content")
+async def update_document_content(project_id: str, doc_type_name: str, content_updates: ContentUpdate):
+    """
+    Update an existing document.
+    """
+    try:
+        result = supabase_client.update_document_content(
+            project_id=project_id,
+            doc_type_name=doc_type_name,
+            content_items=content_updates.content_items
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update document: {str(e)}")
 
 # Add more endpoints as needed for NextCloud and WordPress integration
 

@@ -3,11 +3,11 @@ version: '3'
 services:
   # Open Web UI service
   open-web-ui:
-    image: ghcr.io/open-webui/open-webui:0.6
+    image: ghcr.io/open-webui/open-webui:0.6.15
     container_name: open-web-ui
     restart: unless-stopped
     ports:
-      - "3000:8080"
+      - "3030:8080"
     environment:
       OPENAI_API_BASE_URL: '${OPEN_ROUTER_API_BASE}'
       OPENAI_API_KEY: '${OPEN_ROUTER_API_KEY}'
